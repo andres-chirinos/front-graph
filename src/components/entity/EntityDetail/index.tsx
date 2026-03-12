@@ -87,7 +87,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
     : null;
 
   return (
-    <div className="min-h-screen bg-neutral-white text-primary-green font-sans antialiased pb-24">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased pb-24">
       <style>{`main{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}h1,h2,h3,h4,h5{text-wrap:balance}.animate-slide-up{animation:slideUp 0.8s cubic-bezier(0.16,1,0.3,1) forwards;opacity:0}@keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
       <HeroSection

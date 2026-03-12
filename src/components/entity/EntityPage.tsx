@@ -1,7 +1,10 @@
 import React, { useEffect, useReducer } from 'react';
 import { Loader2 } from 'lucide-react';
 import { fetchEntityDetails, type Entity, type Claim } from '../../lib/queries';
-import type { EntityType } from '../../lib/appwrite/entity-utils';
+import {
+  type EntityType,
+  inferEntityTypeFromLabel,
+} from '../../lib/appwrite/entity-utils';
 import { EntityDetail } from './EntityDetail';
 import { EntityRenderer } from '@/components/entity/views/EntityRenderer';
 import { buildPath } from '../../lib/utils/paths';
@@ -80,12 +83,28 @@ export default function EntityPage() {
           entityType: resolvedType,
         } = await fetchEntityDetails(id);
 
+        // Fallback: if resolvedType is UNKNOWN, try to infer from the entity's label
+        // This handles cases where claim resolution is slow or partially fails.
+        let finalType: EntityType = resolvedType;
+        if (finalType === 'UNKNOWN') {
+          finalType = inferEntityTypeFromLabel(loadedEntity.label);
+        }
+
+        console.log(
+          '[EntityPage] Loaded entity:',
+          loadedEntity.label,
+          '→ type:',
+          resolvedType,
+          '→ finalType:',
+          finalType
+        );
+
         dispatch({
           type: 'SET_DATA',
           payload: {
             entity: loadedEntity as Entity,
             claims: loadedClaims,
-            entityType: resolvedType,
+            entityType: finalType,
           },
         });
       } catch (err: unknown) {
@@ -102,14 +121,63 @@ export default function EntityPage() {
 
   const { loading, error, entity, claims, entityType } = state;
 
+  useEffect(() => {
+    if (!entity) return;
+
+    const isPerson = entityType === 'PERSONA' || entityType === 'POLITICO';
+    let seoTitle = entity.label
+      ? `${entity.label} | Monitor Electoral 2026`
+      : 'Perfil | Monitor Electoral 2026';
+
+    if (isPerson) {
+      seoTitle = `${entity.label} - Candidato Elecciones Subnacionales | Monitor 2026`;
+    }
+
+    const seoDesc = `Consulta el perfil, propuestas y validez de datos de ${entity.label || 'este candidato'} para las elecciones subnacionales 2026.`;
+    const canonicalUrl = `https://elecciones.sociest.org/entity?id=${entity.$id}`;
+
+    document.title = seoTitle;
+
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement('meta');
+      metaDesc.setAttribute('name', 'description');
+      document.head.appendChild(metaDesc);
+    }
+    metaDesc.setAttribute('content', seoDesc);
+
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', canonicalUrl);
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': isPerson ? 'Person' : 'Organization',
+      name: entity.label,
+      description: entity.description || seoDesc,
+      url: canonicalUrl,
+    };
+
+    let script = document.getElementById('json-ld-entity');
+    if (!script) {
+      script = document.createElement('script');
+      script.setAttribute('id', 'json-ld-entity');
+      script.setAttribute('type', 'application/ld+json');
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify(jsonLd);
+  }, [entity, entityType]);
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary-green" />
-          <p className="text-primary-green/60 font-medium">
-            Cargando detalles...
-          </p>
+          <Loader2 className="w-12 h-12 animate-spin text-slate-400" />
+          <p className="text-slate-500 font-medium">Cargando detalles...</p>
         </div>
       </div>
     );
@@ -117,15 +185,15 @@ export default function EntityPage() {
 
   if (error || !entity) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8f9fa] p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-red-100">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="bg-white p-8 rounded-[2rem] shadow-sm max-w-md w-full text-center border border-red-100">
           <h2 className="text-xl font-bold text-red-600 mb-2">Error</h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-slate-600 mb-6">
             {error || 'Entidad no encontrada'}
           </p>
           <a
             href={buildPath('/')}
-            className="inline-flex items-center justify-center px-6 py-3 bg-primary-green text-white rounded-xl font-bold hover:opacity-90 transition-opacity w-full"
+            className="inline-flex items-center justify-center px-6 py-3 bg-white text-slate-700 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 hover:text-primary-green hover:border-slate-300 transition-all w-full shadow-sm"
           >
             Volver al inicio
           </a>
@@ -139,8 +207,13 @@ export default function EntityPage() {
     entityType !== 'POLITICO' &&
     entityType !== 'PERSONA'
   ) {
+    console.log('[EntityPage] Rendering EntityRenderer for type:', entityType);
     return <EntityRenderer entity={entity} claims={claims} type={entityType} />;
   }
 
+  console.log(
+    '[EntityPage] Rendering EntityDetail (generic view) for type:',
+    entityType
+  );
   return <EntityDetail entity={entity} claims={claims} />;
 }

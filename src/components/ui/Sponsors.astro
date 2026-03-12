@@ -1,20 +1,46 @@
 ---
 import { buildPath } from '../../lib/utils/paths';
 
+interface Props {
+  isLight?: boolean;
+}
+
+const { isLight = false } = Astro.props;
+
 const sponsors = [
-  { name: 'SOCIEST', logo: buildPath('/logos/sociest.png') },
-  { name: 'Fundación ARU', logo: buildPath('/logos/aru_white.png') },
+  {
+    name: 'SOCIEST',
+    logo: buildPath('/logos/sociest.png'),
+    logoWebp: buildPath('/logos/sociest.webp'),
+    logoAvif: buildPath('/logos/sociest.avif'),
+  },
+  {
+    name: 'Fundación ARU',
+    logo: isLight ? buildPath('/logos/aru_contraste.png') : buildPath('/logos/aru_white.png'),
+    logoWebp: isLight ? buildPath('/logos/aru_contraste.webp') : undefined,
+    logoAvif: isLight ? buildPath('/logos/aru_contraste.avif') : undefined,
+  },
   {
     name: 'LABTECNOSOCIAL',
-    logo: buildPath('/logos/labtecnosocial_white.png'),
+    logo: isLight
+      ? buildPath('/logos/labtecnosocial_black.png')
+      : buildPath('/logos/labtecnosocial_white.png'),
+    logoWebp: isLight
+      ? buildPath('/logos/labtecnosocial_black.webp')
+      : buildPath('/logos/labtecnosocial_white.webp'),
+    logoAvif: isLight
+      ? buildPath('/logos/labtecnosocial_black.avif')
+      : buildPath('/logos/labtecnosocial_white.avif'),
   },
 ];
 ---
 
 <section class="mt-8">
   <div class="space-y-4">
-    <p class="text-hunter/40 text-[10px] uppercase tracking-[0.3em] font-bold">
-      Desarrollado por:
+    <p
+      class={`text-[10px] uppercase tracking-[0.3em] font-bold ${isLight ? 'text-primary-green/60' : 'text-white/80'}`}
+    >
+      En colaboración con:
     </p>
     <div
       class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 items-center"
@@ -22,17 +48,65 @@ const sponsors = [
       {
         sponsors.map((sponsor) => (
           <div class="flex flex-col items-center group cursor-pointer">
-            <div class="w-full h-20 flex items-center justify-center p-4 bg-white/5 backdrop-blur-md border border-white/5 rounded-2xl group-hover:bg-white/10 group-hover:border-white/10 transition-all duration-500 shadow-xl shadow-black/10 relative overflow-hidden">
-              {/* Subtle highlight effect on hover */}
+            <div
+              class={`w-full h-20 flex items-center justify-center p-4 backdrop-blur-md border rounded-2xl transition-all duration-500 shadow-xl relative overflow-hidden ${isLight ? 'bg-primary-green/10 border-primary-green/10 group-hover:bg-primary-green/10 group-hover:border-primary-green/20 shadow-black/10' : 'bg-white/10 border-white/20 group-hover:bg-white/20 group-hover:border-white/30 shadow-black/10'}`}
+            >
               <div class="absolute inset-0 bg-linear-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <img
-                src={sponsor.logo}
-                alt={`Logo de ${sponsor.name}`}
-                class="max-h-full max-w-full object-contain filter grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500 relative z-10"
-                loading="lazy"
-              />
+              {sponsor.logoAvif || sponsor.logoWebp ? (
+                <picture>
+                  {sponsor.logoAvif && (
+                    <source srcset={sponsor.logoAvif} type="image/avif" />
+                  )}
+                  {sponsor.logoWebp && (
+                    <source srcset={sponsor.logoWebp} type="image/webp" />
+                  )}
+                  <img
+                    src={sponsor.logo}
+                    alt={`Logo de ${sponsor.name}`}
+                    width={
+                      sponsor.name === 'SOCIEST'
+                        ? 2048
+                        : sponsor.name === 'Fundación ARU'
+                          ? 2259
+                          : 1000
+                    }
+                    height={
+                      sponsor.name === 'SOCIEST'
+                        ? 2047
+                        : sponsor.name === 'Fundación ARU'
+                          ? 946
+                          : 496
+                    }
+                    class={`max-h-full max-w-full object-contain filter transition-all duration-500 relative z-10 ${isLight ? 'grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100' : (sponsor.name === 'SOCIEST' ? 'brightness-0 invert opacity-80 group-hover:opacity-100' : 'opacity-80 group-hover:opacity-100')}`}
+                    loading="lazy"
+                  />
+                </picture>
+              ) : (
+                <img
+                  src={sponsor.logo}
+                  alt={`Logo de ${sponsor.name}`}
+                  width={
+                    sponsor.name === 'SOCIEST'
+                      ? 2048
+                      : sponsor.name === 'Fundación ARU'
+                        ? 2259
+                        : 1000
+                  }
+                  height={
+                    sponsor.name === 'SOCIEST'
+                      ? 2047
+                      : sponsor.name === 'Fundación ARU'
+                        ? 946
+                        : 496
+                  }
+                  class={`max-h-full max-w-full object-contain filter transition-all duration-500 relative z-10 ${isLight ? 'grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100' : (sponsor.name === 'SOCIEST' ? 'brightness-0 invert opacity-80 group-hover:opacity-100' : 'opacity-80 group-hover:opacity-100')}`}
+                  loading="lazy"
+                />
+              )}
             </div>
-            <span class="mt-3 text-[10px] font-bold text-hunter/40 uppercase tracking-widest group-hover:text-hunter/80 transition-colors duration-500">
+            <span
+              class={`mt-3 text-[10px] font-bold uppercase tracking-widest transition-colors duration-500 ${isLight ? 'text-primary-green/60 group-hover:text-primary-green' : 'text-white/70 group-hover:text-white'}`}
+            >
               {sponsor.name}
             </span>
           </div>
