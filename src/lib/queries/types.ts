@@ -1,9 +1,10 @@
-import type { Models } from 'appwrite';
-
-export interface Entity extends Models.Document {
+export interface Entity {
+  $id: string;
   label?: string;
   description?: string;
   aliases?: string[];
+  $createdAt?: string;
+  $updatedAt?: string;
 }
 
 export interface Authority extends Entity {
@@ -12,11 +13,13 @@ export interface Authority extends Entity {
   imageUrl?: string;
 }
 
-export interface Claim extends Models.Document {
-  subject?: Entity;
-  property?: Entity;
+export interface Claim {
+  $id: string;
+  subject?: Entity | string;
+  property?: Entity | string;
   value_raw?: string;
-  value_relation?: Entity;
+  value_relation?: Entity | any;
+  value_string?: string;
   datatype:
     | 'string'
     | 'date'
@@ -30,31 +33,21 @@ export interface Claim extends Models.Document {
     | 'polygon'
     | 'color'
     | 'entity';
-  qualifiers?: Qualifier[];
-  references?: Reference[];
+  $createdAt?: string;
+  $updatedAt?: string;
 }
 
-export interface Qualifier extends Models.Document {
+export interface Qualifier {
+  $id: string;
   claim?: Claim | string;
-  property?: Entity;
+  property?: Entity | string;
   value_raw?: string;
-  value_relation?: Entity;
-  datatype:
-    | 'string'
-    | 'date'
-    | 'boolean'
-    | 'coordinate'
-    | 'image'
-    | 'json'
-    | 'number'
-    | 'url'
-    | 'relation'
-    | 'polygon'
-    | 'color'
-    | 'entity';
+  value_relation?: Entity | any;
+  datatype: string;
 }
 
-export interface Reference extends Models.Document {
+export interface Reference {
+  $id: string;
   claim?: Claim | string;
   reference?: Entity | string;
   details?: string;

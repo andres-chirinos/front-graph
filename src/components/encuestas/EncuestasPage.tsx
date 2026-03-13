@@ -1,6 +1,4 @@
 import React, { useEffect, useReducer, useState } from 'react';
-import { Query } from 'appwrite';
-import { databases, DATABASE_ID, COLLECTIONS } from '../../lib/appwrite';
 import { buildPath } from '../../lib/utils/paths';
 import {
   Loader2,
@@ -15,12 +13,41 @@ import {
   ArrowUpRight,
   Clock,
   TrendingUp,
+  User,
 } from 'lucide-react';
-import {
-  ENTITY_TYPE_IDS,
-  PROPERTY_IDS,
-} from '../../lib/constants/entity-types';
 import type { Entity } from '../../lib/queries/types';
+import { getUnifiedData } from '../../lib/queries/localData';
+import { parseCSV } from '../../lib/utils/csv';
+import { EntityCard } from '../dashboard/Dashboard/EntityCard';
+import { PartyCard } from '../entity/EntityDetail/components/PartyCard';
+
+type CSVEncuesta = {
+  item: string;
+  label: string;
+  coberturaLabel: string;
+  autorLabel: string;
+  archivo: string;
+  autor: string;
+  publicacion: string;
+};
+
+type CSVCandidato = {
+  item: string;
+  label: string;
+  partido: string;
+  foto: string;
+  cargo: string;
+  territorio: string;
+};
+
+type CSVPartido = {
+  item: string;
+  label: string;
+  logo: string;
+  sigla: string;
+  militantes: string;
+  colores: string;
+};
 
 type EstudioMini = {
   $id: string;
@@ -33,18 +60,22 @@ type CasaConEstudios = Entity & {
 };
 
 type State = {
-  encuestas: (Entity & { coberturaLabel?: string })[];
+  encuestas: any[];
   casas: CasaConEstudios[];
+  candidatos: any[];
+  partidos: any[];
   loading: boolean;
 };
 
 type Action =
   | { type: 'LOAD_START' }
   | {
-    type: 'LOAD_SUCCESS';
-    encuestas: (Entity & { coberturaLabel?: string })[];
-    casas: CasaConEstudios[];
-  }
+      type: 'LOAD_SUCCESS';
+      encuestas: any[];
+      casas: CasaConEstudios[];
+      candidatos: any[];
+      partidos: any[];
+    }
   | { type: 'LOAD_ERROR' };
 
 const reducer = (state: State, action: Action): State => {
@@ -55,6 +86,8 @@ const reducer = (state: State, action: Action): State => {
       return {
         encuestas: action.encuestas,
         casas: action.casas,
+        candidatos: action.candidatos,
+        partidos: action.partidos,
         loading: false,
       };
     case 'LOAD_ERROR':
@@ -184,166 +217,64 @@ function CasaCard({ casa }: { casa: CasaConEstudios }) {
 }
 
 export default function EncuestasPage() {
-  const [{ encuestas, casas, loading }, dispatch] = useReducer(reducer, {
-    encuestas: [],
-    casas: [],
-    loading: true,
-  });
+  const [{ encuestas, casas, candidatos, partidos, loading }, dispatch] =
+    useReducer(reducer, {
+      encuestas: [],
+      casas: [],
+      candidatos: [],
+      partidos: [],
+      loading: true,
+    });
 
   useEffect(() => {
-    const fetchData = async () => {
+    let mounted = true;
+
+    async function fetchData() {
       dispatch({ type: 'LOAD_START' });
       try {
-        const casasClaims = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.CLAIMS,
-          [
-            Query.equal('property', PROPERTY_IDS.ES_INSTANCIA_DE),
-            Query.equal('value_relation', ENTITY_TYPE_IDS.CASA_ENCUESTADORA),
-            Query.limit(100),
-          ]
-        );
-
-        const casaIds = casasClaims.documents
-          .map((c) => extractId(c.subject))
-          .filter(Boolean) as string[];
-
-        let loadedCasas: Entity[] = [];
-        if (casaIds.length > 0) {
-          const uniqueCasaIds = [...new Set(casaIds)];
-          for (let i = 0; i < uniqueCasaIds.length; i += 100) {
-            const batch = uniqueCasaIds.slice(i, i + 100);
-            const cRes = await databases.listDocuments<Entity>(
-              DATABASE_ID,
-              COLLECTIONS.ENTITIES,
-              [Query.equal('$id', batch), Query.limit(100)]
-            );
-            loadedCasas = [...loadedCasas, ...cRes.documents];
+        const { surveys, candidates, parties } = await getUnifiedData();
+        
+        // Survey Houses (Casas Encuestadoras) logic
+        // We can still use the local survey data to derive the houses
+        const housesMap: Record<string, CasaConEstudios> = {};
+        surveys.forEach((s: any) => { // 'any' because the type of 's' from getUnifiedData might not perfectly match Encuesta yet
+          const casaId = s.autor;
+          if (!casaId) return;
+          if (!housesMap[casaId]) {
+            housesMap[casaId] = {
+              $id: casaId,
+              label: s.autorLabel || casaId,
+              estudios: [],
+            };
           }
-        }
-
-        const autorAllClaims = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.CLAIMS,
-          [
-            Query.equal('property', PROPERTY_IDS.AUTOR_ENCUESTA),
-            Query.limit(100),
-          ]
-        );
-
-        // Map: encuestaId → casaId
-        const encuestaToCasa: Record<string, string> = {};
-        const encuestasIdsFromAutor: string[] = [];
-
-        autorAllClaims.documents.forEach((c) => {
-          const encId = extractId(c.subject);
-          const casaId = extractId(c.value_relation);
-          if (encId && casaId) {
-            encuestaToCasa[encId] = casaId;
-            encuestasIdsFromAutor.push(encId);
-          }
+          housesMap[casaId].estudios.push({
+            $id: s.$id || s.item,
+            label: s.label,
+            coberturaLabel: s.coberturaLabel,
+          });
         });
 
-        const encuestasInstanciaClaims = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.CLAIMS,
-          [
-            Query.equal('property', PROPERTY_IDS.ES_INSTANCIA_DE),
-            Query.equal('value_relation', ENTITY_TYPE_IDS.ENCUESTA_ELECTORAL),
-            Query.limit(100),
-          ]
-        );
+        const transformedCasas = Object.values(housesMap).sort((a, b) => b.estudios.length - a.estudios.length);
 
-        const encuestasIdsFromInstancia = encuestasInstanciaClaims.documents
-          .map((c) => extractId(c.subject))
-          .filter(Boolean) as string[];
-
-        const allEncuestaIds = [
-          ...new Set([...encuestasIdsFromAutor, ...encuestasIdsFromInstancia]),
-        ];
-
-        let loadedEncuestas: (Entity & { coberturaLabel?: string })[] = [];
-
-        if (allEncuestaIds.length > 0) {
-          for (let i = 0; i < allEncuestaIds.length; i += 100) {
-            const batch = allEncuestaIds.slice(i, i + 100);
-
-            const [cRes, cClaims] = await Promise.all([
-              databases.listDocuments<Entity>(
-                DATABASE_ID,
-                COLLECTIONS.ENTITIES,
-                [Query.equal('$id', batch), Query.limit(100)]
-              ),
-              databases.listDocuments(DATABASE_ID, COLLECTIONS.CLAIMS, [
-                Query.equal('subject', batch),
-                Query.equal('property', PROPERTY_IDS.COBERTURA_ENCUESTA),
-                Query.limit(100),
-              ]),
-            ]);
-
-            const coberIds = cClaims.documents
-              .map((c) => extractId(c.value_relation))
-              .filter(Boolean) as string[];
-
-            const covMap: Record<string, string> = {};
-            if (coberIds.length > 0) {
-              const uCobIds = [...new Set(coberIds)];
-              const covEntities = await databases.listDocuments<Entity>(
-                DATABASE_ID,
-                COLLECTIONS.ENTITIES,
-                [Query.equal('$id', uCobIds), Query.limit(100)]
-              );
-              covEntities.documents.forEach((e) => {
-                covMap[e.$id] = e.label || '';
-              });
-            }
-
-            const enhanced = cRes.documents.map((e) => {
-              const claim = cClaims.documents.find(
-                (c) => extractId(c.subject) === e.$id
-              );
-              let coberturaLabel = 'ESTUDIO NACIONAL';
-              if (claim) {
-                const cId = extractId(claim.value_relation);
-                if (cId && covMap[cId]) coberturaLabel = covMap[cId];
-              } else {
-                const m = e.label?.match(
-                  /(La Paz|Santa Cruz|Cochabamba|El Alto|Oruro|Potosí|Chuquisaca|Tarija|Beni|Pando)/i
-                );
-                if (m) coberturaLabel = m[0];
-              }
-              return { ...e, coberturaLabel };
-            });
-
-            loadedEncuestas = [...loadedEncuestas, ...enhanced];
-          }
+        if (mounted) {
+          dispatch({
+            type: 'LOAD_SUCCESS',
+            encuestas: surveys,
+            casas: transformedCasas,
+            candidatos: candidates.slice(0, 12), // Assuming getUnifiedData returns candidates
+            partidos: parties.slice(0, 12), // Assuming getUnifiedData returns parties
+          });
         }
-
-        const casasConEstudios: CasaConEstudios[] = loadedCasas
-          .map((casa) => {
-            const estudios = loadedEncuestas
-              .filter((enc) => encuestaToCasa[enc.$id] === casa.$id)
-              .map((enc) => ({
-                $id: enc.$id,
-                label: enc.label || '',
-                coberturaLabel: enc.coberturaLabel,
-              }));
-            return { ...casa, estudios };
-          })
-          .sort((a, b) => b.estudios.length - a.estudios.length);
-
-        dispatch({
-          type: 'LOAD_SUCCESS',
-          encuestas: loadedEncuestas,
-          casas: casasConEstudios,
-        });
-      } catch (err) {
-        console.error('Error fetching encuestas data', err);
-        dispatch({ type: 'LOAD_ERROR' });
+      } catch (error) {
+        console.error('Error loading surveys from CSV:', error);
+        if (mounted) dispatch({ type: 'LOAD_ERROR' });
       }
-    };
+    }
 
     fetchData();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   if (loading) {
@@ -434,8 +365,11 @@ export default function EncuestasPage() {
         </div>
         {/* Stats banner */}
         {(() => {
-          const conEstudios = casas.filter(c => c.estudios.length > 0).length;
-          const totalEstudios = casas.reduce((s, c) => s + c.estudios.length, 0);
+          const conEstudios = casas.filter((c) => c.estudios.length > 0).length;
+          const totalEstudios = casas.reduce(
+            (s, c) => s + c.estudios.length,
+            0
+          );
           return (
             <div className="ml-16 mb-8 mt-2 flex flex-wrap gap-4 items-center">
               <p className="text-sm text-slate-500">
@@ -445,7 +379,9 @@ export default function EncuestasPage() {
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-green/8 border border-primary-green/15">
                   <TrendingUp className="w-3.5 h-3.5 text-primary-green" />
                   <span className="text-[11px] font-black text-primary-green uppercase tracking-wider">
-                    {conEstudios} firma{conEstudios !== 1 ? 's' : ''} · {totalEstudios} estudio{totalEstudios !== 1 ? 's' : ''} cargados
+                    {conEstudios} firma{conEstudios !== 1 ? 's' : ''} ·{' '}
+                    {totalEstudios} estudio{totalEstudios !== 1 ? 's' : ''}{' '}
+                    cargados
                   </span>
                 </div>
               )}

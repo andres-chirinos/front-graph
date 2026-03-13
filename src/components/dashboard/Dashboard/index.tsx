@@ -1,84 +1,27 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ListFilter, Users } from 'lucide-react';
-import MapViewWrapper from '../MapViewWrapper/MapViewWrapper';
 import { SearchCommand } from '../SearchCommand/SearchCommand';
-import { useMunicipalityInitialization } from './hooks/useMunicipalityInitialization';
 import { useDashboardData } from './hooks/useDashboardData';
-import { useDashboardState } from './hooks/useDashboardState';
 import { buildPath } from '../../../lib/utils/paths';
 import { EntityCard } from './EntityCard';
 import type { Entity } from '../../../lib/queries';
-import { FeaturedPoll } from './components/FeaturedPoll';
 import { PaginationControls } from '../../ui/PaginationControls';
-
-const ITEMS_PER_PAGE = 10;
+import { PieChart, ChevronRight } from 'lucide-react';
 
 const EntityDashboard: React.FC = () => {
-  const {
-    userLocation,
-    userMunicipalityName,
-    municipalityEntityId,
-    setUserMunicipalityName,
-    setMunicipalityEntityId,
-  } = useMunicipalityInitialization();
 
-  /* State for Filters */
-  const [selectedFilter, setSelectedFilter] = React.useState<string>('Todos');
+
   const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
-  const { entities, loading, refreshing } =
-    useDashboardData(municipalityEntityId);
-  const showLoading = loading || (refreshing && entities.length === 0);
+  const { entities, loading } = useDashboardData(null);
+  const showLoading = loading;
 
-  const { setSelectedMunicipality } = useDashboardState(
-    null,
-    null,
-    userLocation
-  );
-
-  const handleMunicipalitySelect = useCallback(
-    (municipality: {
-      name: string;
-      department: string;
-      entityId: string;
-      hasEntity?: boolean;
-    }) => {
-      setSelectedMunicipality({
-        name: municipality.name,
-        department: municipality.department,
-      });
-      setMunicipalityEntityId(municipality.entityId);
-      setUserMunicipalityName(municipality.name);
-      setCurrentPage(1);
-    },
-    [setSelectedMunicipality, setMunicipalityEntityId, setUserMunicipalityName]
-  );
-
-  /* Filter Logic */
-  const filteredEntities = useMemo(() => {
-    if (selectedFilter === 'Todos') return entities;
-
-    return entities.filter((entity: Entity & { role?: string }) => {
-      const role = entity.role || '';
-      if (selectedFilter === 'Alcaldes') return role.includes('Alcalde');
-      if (selectedFilter === 'Concejales') return role.includes('Concejal');
-      if (selectedFilter === 'Gobernadores') return role.includes('Gobernador');
-      if (selectedFilter === 'Asambleístas') {
-        return role.includes('Asambleísta');
-      }
-      return true;
-    });
-  }, [entities, selectedFilter]);
-
-  // Pagination Logic
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredEntities.length / ITEMS_PER_PAGE)
-  );
+  const totalPages = Math.ceil(entities.length / ITEMS_PER_PAGE);
   const currentEntities = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredEntities.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredEntities, currentPage]);
+    return entities.slice(start, start + ITEMS_PER_PAGE);
+  }, [entities, currentPage]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-primary-green selection:text-white antialiased">
@@ -104,135 +47,101 @@ const EntityDashboard: React.FC = () => {
 
             <div className="flex flex-wrap gap-2 mt-6">
               {[
-                'Gobernadores',
-                'Alcaldes',
-                'Concejales',
-                'Asambleístas',
                 'Todos',
+                'Candidatos',
+                'Encuestas',
               ].map((filtro) => (
                 <button
                   key={`filter-${filtro}`}
-                  onClick={() => {
-                    setSelectedFilter(filtro);
-                    setCurrentPage(1);
-                  }}
-                  className={`px-5 py-2 rounded-full border text-[11px] font-black uppercase tracking-widest transition-all ${
-                    selectedFilter === filtro
-                      ? 'bg-primary-green text-white border-primary-green shadow-md'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary-green hover:border-slate-300 shadow-sm'
-                  }`}
+                  className="px-5 py-2 rounded-full border text-[11px] font-black uppercase tracking-widest bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary-green hover:border-slate-300 shadow-sm transition-all"
                 >
                   {filtro}
                 </button>
               ))}
-              <button
-                className="p-2 rounded-full bg-white text-slate-500 hover:bg-slate-50 hover:text-primary-green border border-slate-200 hover:border-slate-300 shadow-sm transition-all"
-                aria-label="Filtrar resultados"
-              >
-                <ListFilter size={18} />
-              </button>
             </div>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-8 space-y-8 order-2 lg:order-1 min-h-[60rem]">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-              <div className="flex items-center gap-2">
-                <Users size={18} className="text-slate-400" />
-                <h2 className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-500">
-                  {selectedFilter === 'Todos'
-                    ? 'Postulantes en tu región'
-                    : `Resultados: ${selectedFilter}`}
-                </h2>
-              </div>
+        <div className="space-y-8">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+            <div className="flex items-center gap-2">
+              <Users size={18} className="text-slate-400" />
+              <h2 className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                Vista General del Proceso Electoral
+              </h2>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-              {showLoading ? (
-                [1, 2, 3, 4].map((_, index) => (
-                  <div
-                    key={`loading-skeleton-${index}`}
-                    className="bg-white border border-slate-200/80 p-6 rounded-[2.5rem] h-60 animate-pulse shadow-sm"
-                  >
-                    <div className="h-4 w-24 rounded bg-slate-100 mb-4"></div>
-                    <div className="h-8 w-3/4 rounded bg-slate-100 mb-3"></div>
-                    <div className="h-4 w-1/2 rounded bg-slate-100"></div>
-                  </div>
-                ))
-              ) : currentEntities.length > 0 ? (
-                currentEntities.map((entity) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {showLoading ? (
+              [1, 2, 3, 4, 5, 6].map((_, index) => (
+                <div
+                  key={`loading-skeleton-${index}`}
+                  className="bg-white border border-slate-200/80 p-6 rounded-[2.5rem] h-60 animate-pulse shadow-sm"
+                >
+                  <div className="h-4 w-24 rounded bg-slate-100 mb-4"></div>
+                  <div className="h-8 w-3/4 rounded bg-slate-100 mb-3"></div>
+                  <div className="h-4 w-1/2 rounded bg-slate-100"></div>
+                </div>
+              ))
+            ) : currentEntities.length > 0 ? (
+              currentEntities.map((entity) => {
+                if (entity.isSurvey) {
+                  return (
+                    <a
+                      key={entity.$id}
+                      href={buildPath(`/entity?id=${entity.$id}`)}
+                      className="group flex flex-col p-8 rounded-[2rem] bg-slate-900 border border-slate-800 shadow-sm hover:shadow-xl hover:shadow-slate-900/20 hover:-translate-y-1 transition-all duration-300"
+                    >
+                      <div className="flex items-start justify-between gap-4 mb-6">
+                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-primary-green shrink-0 group-hover:scale-110 group-hover:bg-primary-green group-hover:text-white transition-all duration-300 shadow-sm">
+                          <PieChart className="w-7 h-7" />
+                        </div>
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase bg-white/5 text-slate-400 shadow-sm border border-white/10">
+                          {entity.coberturaLabel || 'ENCUESTA'}
+                        </span>
+                      </div>
+
+                      <div className="mb-8">
+                        <h3 className="text-[1.35rem] font-black text-white leading-tight mb-4 line-clamp-2 group-hover:text-primary-green transition-colors">
+                          {entity.label}
+                        </h3>
+                        <p className="text-sm text-slate-400 line-clamp-3 leading-relaxed">
+                          {entity.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto pt-6 border-t border-white/10 flex items-center justify-between">
+                        <span className="text-[11px] font-black text-white px-4 py-2 bg-white/5 rounded-xl border border-white/10 group-hover:bg-primary-green group-hover:border-primary-green transition-all">
+                          Ver Resultados
+                        </span>
+                        <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                      </div>
+                    </a>
+                  );
+                }
+                return (
                   <EntityCard
                     key={entity.$id}
                     entity={entity}
-                    municipalityName={userMunicipalityName || 'Bolivia'}
+                    municipalityName={entity.territorio || 'Bolivia'}
                   />
-                ))
-              ) : (
-                <div className="col-span-full py-12 text-center text-slate-400 font-medium flex flex-col items-center gap-2 absolute top-0 w-full">
-                  <span>
-                    No se encontraron resultados para &quot;{selectedFilter}
-                    &quot;.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {!showLoading && filteredEntities.length > 0 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={(page) => setCurrentPage(page)}
-              />
+                );
+              })
+            ) : (
+              <div className="col-span-full py-12 text-center text-slate-400 font-medium flex flex-col items-center gap-2">
+                <span>No se encontraron resultados.</span>
+              </div>
             )}
           </div>
 
-          <div className="lg:col-span-4 space-y-8 order-1 lg:order-2">
-            <div className="bg-white border border-slate-200/80 p-1.5 rounded-[2.5rem] shadow-md overflow-hidden group sticky top-28">
-              <div className="bg-slate-100 rounded-[2.3rem] aspect-4/5 relative overflow-hidden">
-                <div className="absolute inset-0">
-                  <MapViewWrapper
-                    selectedEntityId={municipalityEntityId || undefined}
-                    onMunicipalitySelect={handleMunicipalitySelect}
-                  />
-                </div>
-
-                <div className="absolute top-6 left-6 right-6 pointer-events-none">
-                  <div className="bg-white/95 backdrop-blur-md text-slate-900 p-5 rounded-3xl border border-slate-200/80 shadow-xl">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Analizando
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-black tracking-tighter flex items-center gap-2">
-                      {userMunicipalityName
-                        ? `Municipio de ${userMunicipalityName}`
-                        : 'Bolivia'}
-                      {refreshing && !loading && (
-                        <span className="text-[10px] uppercase tracking-widest text-slate-400">
-                          Actualizando…
-                        </span>
-                      )}
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="absolute bottom-6 left-6 right-6 text-center pointer-events-none">
-                  <a
-                    href={buildPath('/mapa')}
-                    className="pointer-events-auto block"
-                  >
-                    <button className="w-full py-3.5 bg-primary-green text-white rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:scale-105 transition-transform active:scale-95 cursor-pointer">
-                      Ver mapa completo
-                    </button>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <FeaturedPoll />
-          </div>
+          {!showLoading && entities.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(page) => setCurrentPage(page)}
+            />
+          )}
         </div>
       </div>
     </div>
