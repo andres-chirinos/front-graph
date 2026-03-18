@@ -64,14 +64,14 @@ export async function fetchEntitiesFiltered(
       $id: m.id,
       label: m.name,
       description: `Municipio - ${m.department}`,
-      type: 'Municipio',
+      type: 'MUNICIPIO',
       department: m.department,
     }));
 
     let allEntities = [
-      ...candidatos, 
+      ...candidatos.map((c: any) => ({ ...c, type: 'PERSONA' })), 
       ...mappedMunicipalities, 
-      ...(encuestas || []).map((e: any) => ({ ...e, type: 'Encuesta' }))
+      ...(encuestas || []).map((e: any) => ({ ...e, type: 'ENCUESTA' }))
     ];
 
     // Filter by Type
@@ -80,17 +80,17 @@ export async function fetchEntitiesFiltered(
         allEntities = mappedMunicipalities;
       } else if (entityType === 'Persona') {
         // Everything in candidatos.csv is a persona
-        allEntities = candidatos;
+        allEntities = candidatos.map((c: any) => ({ ...c, type: 'PERSONA' }));
       } else if (entityType === 'Partido Político') {
         // Unique parties from the candidatos list
         const partyNames = new Set(candidatos.map((c: any) => c.party.label).filter(Boolean));
         allEntities = Array.from(partyNames).map(name => ({
           $id: `party_${normalizeText(name as string)}`,
           label: name,
-          type: 'Partido Político'
+          type: 'PARTIDO_POLITICO'
         }));
       } else if (entityType === 'Encuesta') {
-        allEntities = (encuestas || []).map((e: any) => ({ ...e, type: 'Encuesta' }));
+        allEntities = (encuestas || []).map((e: any) => ({ ...e, type: 'ENCUESTA' }));
       }
     }
 
@@ -113,6 +113,14 @@ export async function fetchEntitiesFiltered(
 
           // Regular candidate filtering: by exact ID
           return e.territorioIds?.includes(department) || e.territorioId === department;
+        }
+
+        // Special logic for Surveys
+        if (e.type === 'Encuesta') {
+          if (e.coberturaId === department || e.cobertura === department) return true;
+          // Fallback to department-level surveys
+          if (selectedMuni?.department && e.coberturaLabel?.includes(selectedMuni.department)) return true;
+          return false;
         }
 
         // Other entity types
@@ -149,22 +157,36 @@ export async function fetchEntitiesFiltered(
 
     // Enrich 'Persona' entities with associated survey results
     const personas = allEntities.filter((e: any) => e.cargos && e.cargos.length > 0 || e.type === 'Persona');
+    const encuestasFull = (encuestas || []).map((e: any) => ({ ...e, type: 'Encuesta' }));
+
     personas.forEach((persona: any) => {
       persona.results = [];
-      if (encuestas) {
-        encuestas.forEach((encuesta: any) => {
-          const match = encuesta.resultados.find((r: any) => r.item === persona.$id);
-          if (match) {
-            persona.results.push({
-              encuestaId: encuesta.$id,
-              autorLabel: encuesta.autorLabel,
-              fechaFin: encuesta.fechaFin,
-              porcentaje: match.porcentaje,
-              pregunta: match.pregunta
-            });
+      const personaName = normalizeText(persona.label || '');
+      
+      encuestasFull.forEach((encuesta: any) => {
+        const match = encuesta.resultados.find((r: any) => {
+          // 1. Try matching by exact ID
+          if (r.item === persona.$id) return true;
+          
+          // 2. Try matching by name (sometimes resultado has the name instead of ID)
+          const resultName = normalizeText(r.label || r.item || '');
+          if (resultName.length > 5 && (resultName.includes(personaName) || personaName.includes(resultName))) {
+            return true;
           }
+          
+          return false;
         });
-      }
+
+        if (match) {
+          persona.results.push({
+            encuestaId: encuesta.$id,
+            autorLabel: encuesta.autorLabel,
+            fechaFin: encuesta.fechaFin,
+            porcentaje: match.porcentaje,
+            pregunta: match.pregunta
+          });
+        }
+      });
     });
 
     const total = allEntities.length;

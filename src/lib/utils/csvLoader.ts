@@ -204,7 +204,7 @@ export function aggregateEncuestas(rows: CSVRow[]) {
     }
 
     const entry = aggregated.get(id);
-    if (row.resultado) {
+    if (row.resultado && row.resultadopregunta) {
       entry.resultados.push({
         item: row.resultado,
         label: row.resultadolabel,
