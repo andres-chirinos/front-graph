@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ListFilter, Users } from 'lucide-react';
+import { ListFilter, Users, BarChart3 } from 'lucide-react';
 import MapViewWrapper from '../MapViewWrapper/MapViewWrapper';
 import { SearchCommand } from '../SearchCommand/SearchCommand';
 import { useMunicipalityInitialization } from './hooks/useMunicipalityInitialization';
@@ -26,7 +26,7 @@ const EntityDashboard: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = React.useState<string>('Todos');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const { entities, loading, refreshing } =
+  const { entities, surveys, loading, refreshing } =
     useDashboardData(municipalityEntityId);
   const showLoading = loading || (refreshing && entities.length === 0);
 
@@ -54,21 +54,41 @@ const EntityDashboard: React.FC = () => {
     [setSelectedMunicipality, setMunicipalityEntityId, setUserMunicipalityName]
   );
 
+  /* Category Data */
+  const CARGO_GROUPS = useMemo(() => ({
+    Departamental: [
+      'Gobernador',
+      'Asambleistas Departamentales por Población',
+      'Asambleistas Departamentales por Territorio',
+    ],
+    Municipal: ['Alcalde', 'Concejales Municipales'],
+  }), []);
+
   /* Filter Logic */
   const filteredEntities = useMemo(() => {
     if (selectedFilter === 'Todos') return entities;
 
+    const departamentalCargos = CARGO_GROUPS.Departamental;
+    const municipalCargos = CARGO_GROUPS.Municipal;
+
     return entities.filter((entity: Entity & { role?: string }) => {
       const role = entity.role || '';
-      if (selectedFilter === 'Alcaldes') return role.includes('Alcalde');
-      if (selectedFilter === 'Concejales') return role.includes('Concejal');
-      if (selectedFilter === 'Gobernadores') return role.includes('Gobernador');
-      if (selectedFilter === 'Asambleístas') {
-        return role.includes('Asambleísta');
+      
+      if (selectedFilter === 'Departamental') {
+        return departamentalCargos.some(c => role.includes(c));
       }
-      return true;
+      if (selectedFilter === 'Municipal') {
+        return municipalCargos.some(c => role.includes(c));
+      }
+      if (selectedFilter === 'Otros') {
+        const isKnown = [...departamentalCargos, ...municipalCargos].some(c => role.includes(c));
+        return !isKnown;
+      }
+
+      // Specific sub-filter
+      return role.includes(selectedFilter);
     });
-  }, [entities, selectedFilter]);
+  }, [entities, selectedFilter, CARGO_GROUPS]);
 
   // Pagination Logic
   const totalPages = Math.max(
@@ -79,6 +99,34 @@ const EntityDashboard: React.FC = () => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     return filteredEntities.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredEntities, currentPage]);
+
+  const allCargos = useMemo(() => {
+    const cargos = new Set<string>();
+    entities.forEach((e: any) => {
+      if (e.role) cargos.add(e.role);
+    });
+    return Array.from(cargos);
+  }, [entities]);
+
+  const otherCargos = useMemo(() => {
+    const known = [...CARGO_GROUPS.Departamental, ...CARGO_GROUPS.Municipal];
+    return allCargos.filter(c => !known.some(k => c.includes(k)));
+  }, [allCargos, CARGO_GROUPS]);
+
+  const FilterButton = ({ label, isActive, onClick, sub }: { label: string, isActive: boolean, onClick: () => void, sub?: boolean }) => (
+    <button
+      onClick={onClick}
+      className={`px-4 py-1.5 rounded-xl border transition-all ${
+        sub ? 'text-[9px] px-3' : 'text-[10px] px-5'
+      } font-black uppercase tracking-widest ${
+        isActive
+          ? 'bg-primary-green text-white border-primary-green shadow-md z-10'
+          : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-primary-green hover:border-slate-300 shadow-sm'
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-primary-green selection:text-white antialiased">
@@ -102,35 +150,88 @@ const EntityDashboard: React.FC = () => {
               />
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-6">
-              {[
-                'Gobernadores',
-                'Alcaldes',
-                'Concejales',
-                'Asambleístas',
-                'Todos',
-              ].map((filtro) => (
-                <button
-                  key={`filter-${filtro}`}
-                  onClick={() => {
-                    setSelectedFilter(filtro);
-                    setCurrentPage(1);
-                  }}
-                  className={`px-5 py-2 rounded-full border text-[11px] font-black uppercase tracking-widest transition-all ${
-                    selectedFilter === filtro
-                      ? 'bg-primary-green text-white border-primary-green shadow-md'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary-green hover:border-slate-300 shadow-sm'
-                  }`}
-                >
-                  {filtro}
-                </button>
-              ))}
-              <button
-                className="p-2 rounded-full bg-white text-slate-500 hover:bg-slate-50 hover:text-primary-green border border-slate-200 hover:border-slate-300 shadow-sm transition-all"
-                aria-label="Filtrar resultados"
-              >
-                <ListFilter size={18} />
-              </button>
+            <div className="mt-8 space-y-6">
+              {/* Category Group: Departamental */}
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Departamental</span>
+                  <div className="h-px flex-1 bg-slate-100"></div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <FilterButton 
+                    label="Todos Departamentales" 
+                    isActive={selectedFilter === 'Departamental'} 
+                    onClick={() => { setSelectedFilter('Departamental'); setCurrentPage(1); }} 
+                  />
+                  {CARGO_GROUPS.Departamental.map(cargo => (
+                    <FilterButton 
+                      key={cargo}
+                      label={cargo.replace('Asambleistas Departamentales por ', 'Asambleístas ')} 
+                      isActive={selectedFilter === cargo} 
+                      onClick={() => { setSelectedFilter(cargo); setCurrentPage(1); }}
+                      sub
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Category Group: Municipal */}
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Municipal</span>
+                  <div className="h-px flex-1 bg-slate-100"></div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <FilterButton 
+                    label="Todos Municipales" 
+                    isActive={selectedFilter === 'Municipal'} 
+                    onClick={() => { setSelectedFilter('Municipal'); setCurrentPage(1); }} 
+                  />
+                  {CARGO_GROUPS.Municipal.map(cargo => (
+                    <FilterButton 
+                      key={cargo}
+                      label={cargo} 
+                      isActive={selectedFilter === cargo} 
+                      onClick={() => { setSelectedFilter(cargo); setCurrentPage(1); }}
+                      sub
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Others and Global */}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <FilterButton 
+                  label="Todos los Candidatos" 
+                  isActive={selectedFilter === 'Todos'} 
+                  onClick={() => { setSelectedFilter('Todos'); setCurrentPage(1); }} 
+                />
+                
+                {otherCargos.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <FilterButton 
+                      label="Otros Cargos" 
+                      isActive={selectedFilter === 'Otros'} 
+                      onClick={() => { setSelectedFilter('Otros'); setCurrentPage(1); }} 
+                    />
+                    <div className="flex flex-wrap gap-1">
+                      {otherCargos.map(cargo => (
+                         <button
+                          key={cargo}
+                          onClick={() => { setSelectedFilter(cargo); setCurrentPage(1); }}
+                          className={`text-[8px] font-black uppercase tracking-tighter px-2 py-1 rounded-lg border ${
+                            selectedFilter === cargo 
+                              ? 'bg-slate-200 text-slate-800 border-slate-300' 
+                              : 'bg-white text-slate-400 border-slate-100 hover:text-primary-green'
+                          }`}
+                         >
+                           {cargo}
+                         </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -185,6 +286,44 @@ const EntityDashboard: React.FC = () => {
                 onPageChange={(page) => setCurrentPage(page)}
               />
             )}
+
+            {/* SURVEYS SECTION */}
+            {!showLoading && surveys.length > 0 && (
+              <div className="pt-12 mt-12 border-t border-slate-200">
+                <div className="flex items-center gap-2 mb-8">
+                  <BarChart3 size={18} className="text-slate-400" />
+                  <h2 className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                    Encuestas Recientes
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {surveys.map((survey: any) => (
+                    <a
+                      key={survey.$id}
+                      href={buildPath(`/entity?id=${survey.$id}`)}
+                      className="group bg-white border border-slate-200/80 p-6 rounded-[2.5rem] hover:border-primary-green/50 hover:shadow-xl transition-all"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {survey.autorLabel || 'Encuesta'}
+                        </span>
+                        <div className="bg-slate-50 p-2 rounded-full border border-slate-100">
+                          <BarChart3 size={14} className="text-slate-400" />
+                        </div>
+                      </div>
+                      <h4 className="text-lg font-black tracking-tight mb-4 group-hover:text-primary-green transition-colors">
+                        {survey.label}
+                      </h4>
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                        <span>{survey.fechaFin || survey.publicacion}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                        <span>n={survey.muestra || '?'}</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-4 space-y-8 order-1 lg:order-2">
@@ -231,7 +370,7 @@ const EntityDashboard: React.FC = () => {
               </div>
             </div>
 
-            <FeaturedPoll />
+            {/*<FeaturedPoll />*/}
           </div>
         </div>
       </div>
