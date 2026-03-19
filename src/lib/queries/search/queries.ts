@@ -1,6 +1,7 @@
 import type { Entity, Authority } from '../types';
 import { loadCSV, aggregateCandidatos, aggregateEncuestas } from '../../utils/csvLoader';
 import { normalizeText, calculateSearchScore } from './helpers';
+import { buildPath } from '../../utils/paths';
 
 // Cache for CSV data to avoid re-fetching
 let cachedCandidatos: any[] | null = null;
@@ -9,14 +10,14 @@ let cachedEncuestas: any[] | null = null;
 
 async function getCandidatosData() {
   if (cachedCandidatos) return cachedCandidatos;
-  const rows = await loadCSV('/data/candidatos.csv');
+  const rows = await loadCSV(buildPath('/data/candidatos.csv'));
   cachedCandidatos = aggregateCandidatos(rows);
   return cachedCandidatos;
 }
 
 async function getEncuestasData() {
   if (cachedEncuestas) return cachedEncuestas;
-  const rows = await loadCSV('/data/encuestas.csv');
+  const rows = await loadCSV(buildPath('/data/encuestas.csv'));
   cachedEncuestas = aggregateEncuestas(rows);
   return cachedEncuestas;
 }
@@ -24,7 +25,7 @@ async function getEncuestasData() {
 async function getMunicipalitiesData() {
   if (cachedMunicipalities) return cachedMunicipalities;
   try {
-    const response = await fetch('/municipalities-index.json');
+    const response = await fetch(buildPath('/municipalities-index.json'));
     cachedMunicipalities = await response.json();
     return cachedMunicipalities || [];
   } catch (error) {
