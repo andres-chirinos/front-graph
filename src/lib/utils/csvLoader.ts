@@ -190,26 +190,28 @@ export function aggregateEncuestas(rows: CSVRow[]) {
         $id: id,
         label: row.label,
         coberturaId: row.cobertura,
-        coberturaLabel: row.coberturaLabel,
+        coberturaLabel: row.cobertura_label || row.coberturaLabel,
         autorId: row.autor,
-        autorLabel: row.autorLabel,
-        fechaInicio: row.fecha_inicio,
-        fechaFin: row.fecha_fin,
+        autorLabel: row.autor_label || row.autorLabel,
+        fechaInicio: row.fecha_inicio || row.fechaInicio,
+        fechaFin: row.fecha_fin || row.fechaFin,
         margen: row.margen,
         muestra: row.muestra,
         publicacion: row.publicacion,
-        nivelConfianza: row.nivel_confianza,
+        nivelConfianza: row.nivel_confianza || row.nivelConfianza,
         resultados: [],
       });
     }
 
     const entry = aggregated.get(id);
-    if (row.resultado && row.resultadopregunta) {
+    const resId = row.resultado;
+    const resPreg = row.resultadopregunta || row.resultado_pregunta;
+    if (resId && resPreg) {
       entry.resultados.push({
-        item: row.resultado,
-        label: row.resultadolabel,
-        porcentaje: parseFloat(row.resultadoporcentaje) || 0,
-        pregunta: row.resultadopregunta,
+        item: resId,
+        label: row.resultadolabel || row.resultado_label,
+        porcentaje: parseFloat(row.resultadoporcentaje || row.resultado_porcentaje) || 0,
+        pregunta: resPreg,
       });
     }
   });

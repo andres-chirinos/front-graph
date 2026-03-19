@@ -25,6 +25,17 @@ const EntityDashboard: React.FC = () => {
   /* State for Filters */
   const [selectedFilter, setSelectedFilter] = React.useState<string>('Todos');
   const [currentPage, setCurrentPage] = useState(1);
+  const resultsRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to results on mobile when filter or municipality changes
+  React.useEffect(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    if (isMobile && resultsRef.current && (selectedFilter !== 'Todos' || municipalityEntityId)) {
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [selectedFilter, municipalityEntityId]);
 
   const { entities, surveys, loading, refreshing } =
     useDashboardData(municipalityEntityId);
@@ -66,18 +77,18 @@ const EntityDashboard: React.FC = () => {
     return Array.from(cargos).sort();
   }, [entities]);
 
-  const departamentalCargos = useMemo(() => [
+  const departamentalCargos = [
     'Gobernador',
     'Vicegobernador',
     'Subgobernador',
     'Asambleístas Departamentales por Territorio',
     'Asambleístas Departamentales por Población'
-  ].filter(c => allCargos.includes(c)), [allCargos]);
+  ];
 
-  const municipalCargos = useMemo(() => [
+  const municipalCargos = [
     'Alcalde',
     'Concejales Municipales'
-  ].filter(c => allCargos.includes(c)), [allCargos]);
+  ];
 
   const otherCargos = useMemo(() => {
     const known = [...departamentalCargos, ...municipalCargos];
@@ -171,7 +182,7 @@ const EntityDashboard: React.FC = () => {
                     {departamentalCargos.map(cargo => (
                       <FilterButton 
                         key={cargo}
-                        label={cargo.replace('Asambleistas Departamentales por ', 'Asambleístas ')} 
+                        label={cargo.replace('Asambleístas Departamentales por ', 'Asambleístas ')} 
                         isActive={selectedFilter === cargo} 
                         onClick={() => { setSelectedFilter(cargo); setCurrentPage(1); }}
                         sub
@@ -246,10 +257,10 @@ const EntityDashboard: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-8 order-2 lg:order-1 min-h-[60rem]">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-              <div className="flex items-center gap-2">
-                <Users size={18} className="text-slate-400" />
-                <h2 className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-500">
+            <div ref={resultsRef} className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-2">
+                  <Users size={18} className="text-slate-400" />
+                  <h2 className="font-black text-[10px] uppercase tracking-[0.3em] text-slate-500">
                   {selectedFilter === 'Todos'
                     ? 'Postulantes en tu región'
                     : `Resultados: ${selectedFilter}`}

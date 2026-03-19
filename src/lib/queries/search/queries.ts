@@ -64,14 +64,14 @@ export async function fetchEntitiesFiltered(
       $id: m.id,
       label: m.name,
       description: `Municipio - ${m.department}`,
-      type: 'MUNICIPIO',
+      type: 'Municipio',
       department: m.department,
     }));
 
     let allEntities = [
-      ...candidatos.map((c: any) => ({ ...c, type: 'PERSONA' })), 
+      ...candidatos.map((c: any) => ({ ...c, type: 'Persona' })), 
       ...mappedMunicipalities, 
-      ...(encuestas || []).map((e: any) => ({ ...e, type: 'ENCUESTA' }))
+      ...(encuestas || []).map((e: any) => ({ ...e, type: 'Encuesta' }))
     ];
 
     // Filter by Type
@@ -87,10 +87,10 @@ export async function fetchEntitiesFiltered(
         allEntities = Array.from(partyNames).map(name => ({
           $id: `party_${normalizeText(name as string)}`,
           label: name,
-          type: 'PARTIDO_POLITICO'
+          type: 'Partido'
         }));
       } else if (entityType === 'Encuesta') {
-        allEntities = (encuestas || []).map((e: any) => ({ ...e, type: 'ENCUESTA' }));
+        allEntities = (encuestas || []).map((e: any) => ({ ...e, type: 'Encuesta' }));
       }
     }
 
@@ -102,10 +102,13 @@ export async function fetchEntitiesFiltered(
       allEntities = allEntities.filter((e: any) => {
         // Special logic for Governors in Persona entities
         if (e.type === 'Persona' || (e.cargos && e.cargos.length > 0)) {
-          const isGobernador = e.role?.toLowerCase().includes('gobernador') || 
-                              (e.cargos && e.cargos.some((c: string) => c.toLowerCase().includes('gobernador')));
+          const roleLower = (e.role || '').toLowerCase();
+          const cargosLower = (e.cargos || []).map((c: string) => c.toLowerCase());
+          const isDepartamental = roleLower.includes('gobernador') || 
+                                 roleLower.includes('departamental') ||
+                                 cargosLower.some((c: string) => c.includes('gobernador') || c.includes('departamental'));
           
-          if (isGobernador && deptCode) {
+          if (isDepartamental && deptCode) {
             // Match by department code (first 2 digits of INE code)
             return e.territorioCodigos?.some((code: string) => code.substring(0, 2) === deptCode) ||
                    (e.territorioCodigo && e.territorioCodigo.substring(0, 2) === deptCode);
@@ -115,11 +118,17 @@ export async function fetchEntitiesFiltered(
           return e.territorioIds?.includes(department) || e.territorioId === department;
         }
 
-        // Special logic for Surveys
+        // Special logic for Surveys: Include municipality-specific + department-wide
         if (e.type === 'Encuesta') {
+          // 1. Match by Municipality ID
           if (e.coberturaId === department || e.cobertura === department) return true;
-          // Fallback to department-level surveys
+          
+          // 2. Match by Department Name (string search)
           if (selectedMuni?.department && e.coberturaLabel?.includes(selectedMuni.department)) return true;
+          
+          // 3. Match by Department Code (first 2 digits of INE code)
+          if (deptCode && e.coberturaId && e.coberturaId.length === 2 && e.coberturaId === deptCode) return true;
+          
           return false;
         }
 
@@ -168,11 +177,19 @@ export async function fetchEntitiesFiltered(
           // 1. Try matching by exact ID
           if (r.item === persona.$id) return true;
           
-          // 2. Try matching by name (sometimes resultado has the name instead of ID)
-          const resultName = normalizeText(r.label || r.item || '');
-          if (resultName.length > 5 && (resultName.includes(personaName) || personaName.includes(resultName))) {
-            return true;
-          }
+          // 2. Try matching by name (fuzzy)
+          const resultLabel = normalizeText(r.label || '');
+          const resultItem = normalizeText(r.item || '');
+          const pName = personaName;
+
+          if (resultLabel.length > 5 && (resultLabel.includes(pName) || pName.includes(resultLabel))) return true;
+          if (resultItem.length > 5 && !resultItem.startsWith('69') && (resultItem.includes(pName) || pName.includes(resultItem))) return true;
+
+          // 3. Word overlap (at least 2 significant words)
+          const pWords = pName.split(/\s+/).filter(w => w.length > 2);
+          const rWords = resultLabel.split(/\s+/).filter(w => w.length > 2);
+          const common = pWords.filter(w => rWords.includes(w));
+          if (common.length >= 2) return true;
           
           return false;
         });

@@ -16,11 +16,23 @@
 export function buildPath(path: string): string {
   const base = import.meta.env.PUBLIC_BASE_URL ?? '/';
   const baseRoute = import.meta.env.PUBLIC_BASE_ROUTE ?? '/';
-  const cleanBase =
-    base === '/'
-      ? ''
-      : base.replace(/\/+$/, '') + baseRoute.replace(/\/+$/, '');
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  
+  // Extraemos solo el pathname si base es una URL completa
+  let cleanBase = '';
+  if (base.startsWith('http')) {
+    try {
+      const url = new URL(base);
+      cleanBase = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
+    } catch {
+      cleanBase = '';
+    }
+  } else {
+    cleanBase = base === '/' ? '' : base.replace(/\/+$/, '');
+  }
 
-  return `${cleanBase}${cleanPath}`;
+  const route = baseRoute === '/' ? '' : baseRoute.replace(/\/+$/, '');
+  const combinedBase = (cleanBase + route).replace(/\/+$/, '');
+  
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${combinedBase}${cleanPath}`;
 }
