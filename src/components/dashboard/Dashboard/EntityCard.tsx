@@ -75,6 +75,7 @@ export const EntityCard: React.FC<EntityCardProps> = ({
   entity,
   municipalityName,
 }) => {
+  const [isExpanded, setIsExpanded] = React.useState(false);
   const authority = entity as Authority;
   const hasRole = !!authority.role;
   const hasParty = !!authority.party?.label;
@@ -89,7 +90,10 @@ export const EntityCard: React.FC<EntityCardProps> = ({
   const militanciaParty = authority.militancias && authority.militancias[0];
 
   return (
-    <div className="group bg-white border border-slate-200/80 rounded-[2rem] hover:border-primary-green/50 hover:shadow-xl hover:shadow-orange-900/5 transition-all overflow-hidden">
+    <div 
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={`group bg-white border border-slate-200/80 rounded-[2rem] hover:border-primary-green/50 hover:shadow-xl hover:shadow-orange-900/5 transition-all overflow-hidden cursor-pointer ${isExpanded ? 'border-primary-green ring-1 ring-primary-green/20 shadow-lg' : ''}`}
+    >
       {/* ── CARA VISIBLE ── */}
       <div className="p-8 flex flex-col justify-between min-h-[240px]">
         {/* Top row: role badge + location + shield */}
@@ -190,14 +194,14 @@ export const EntityCard: React.FC<EntityCardProps> = ({
             <ChevronDown
               size={14}
               strokeWidth={3}
-              className="group-hover:translate-y-0.5 transition-transform"
+              className={`transition-transform duration-300 ${isExpanded ? 'rotate-180 text-primary-green' : 'group-hover:translate-y-0.5'}`}
             />
           </div>
         </div>
       </div>
 
-      {/* ── EXPANSIÓN EN HOVER ── */}
-      <div className="max-h-0 group-hover:max-h-[1000px] overflow-hidden transition-all duration-500 ease-in-out">
+      {/* ── EXPANSIÓN ── */}
+      <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'max-h-[1000px]' : 'max-h-0 lg:group-hover:max-h-[1000px]'}`}>
         <div className="px-8 pb-8 border-t border-slate-100 pt-5 flex flex-col gap-6">
           {/* Survey Results (En medio para dar visibilidad) */}
           {authority.results && authority.results.length > 0 && (
