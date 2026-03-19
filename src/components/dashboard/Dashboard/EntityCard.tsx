@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Users,
   BarChart3,
+  Search,
 } from 'lucide-react';
 import type { Entity, Authority } from '../../../lib/queries';
 import { getOptimizedImageUrl } from '../../../lib/utils/image';
@@ -115,8 +116,18 @@ export const EntityCard: React.FC<EntityCardProps> = ({
         {/* Name + party + photo */}
         <div className="flex gap-4 items-center">
           <div className="flex-1">
-            <h4 className="text-3xl font-black leading-[0.85] tracking-tighter text-slate-900 mb-3 group-hover:text-primary-green transition-all">
-              {entity.label || 'Sin nombre'}
+            <h4 className="text-3xl font-black leading-[0.85] tracking-tighter text-slate-900 mb-3 group-hover:text-primary-green transition-all flex items-center gap-2">
+              <span className="flex-1">{entity.label || 'Sin nombre'}</span>
+              <a 
+                href={`https://www.google.com/search?q=${encodeURIComponent(entity.label || '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="p-1.5 bg-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                title={`Buscar "${entity.label}" en Google`}
+              >
+                <Search size={16} />
+              </a>
             </h4>
             
             <div className="flex flex-col gap-2">
